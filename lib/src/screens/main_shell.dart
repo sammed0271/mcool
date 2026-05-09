@@ -6,6 +6,7 @@ import '../provider/invoice_provider.dart';
 import 'clients_screen.dart';
 import 'dashboard_screen.dart';
 import 'history_screen.dart';
+import '../features/inventory/screens/inventory_screen.dart';
 
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
@@ -21,6 +22,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     DashboardScreen(),
     HistoryScreen(),
     ClientsScreen(),
+    InventoryScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -67,6 +69,11 @@ class _MainShellState extends ConsumerState<MainShell> {
             icon: Icon(Icons.people_outline),
             selectedIcon: Icon(Icons.people),
             label: 'Clients',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.inventory_2_outlined),
+            selectedIcon: Icon(Icons.inventory_2),
+            label: 'Inventory',
           ),
         ],
       ),

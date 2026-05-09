@@ -20,7 +20,13 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(
+      path,
+      version: 2,
+      onCreate: _createDB,
+      onUpgrade: _onUpgrade,
+      onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
+    );
   }
 
   Future _createDB(Database db, int version) async {
@@ -57,6 +63,72 @@ class DatabaseHelper {
         FOREIGN KEY (invoice_id) REFERENCES invoices (id) ON DELETE CASCADE
       )
     ''');
+
+    await _createPhase2Tables(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _createPhase2Tables(db);
+      await db.execute("ALTER TABLE invoices ADD COLUMN appliance_type TEXT DEFAULT 'Refrigerator'");
+      await db.execute("ALTER TABLE invoices ADD COLUMN appliance_details TEXT");
+      await db.execute("ALTER TABLE invoices ADD COLUMN service_charge REAL DEFAULT 0");
+      await db.execute("ALTER TABLE invoices ADD COLUMN parts_cost REAL DEFAULT 0");
+    }
+  }
+
+  Future<void> _createPhase2Tables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS parts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        part_number TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        appliance_type TEXT NOT NULL,
+        brand TEXT,
+        quantity INTEGER NOT NULL DEFAULT 0,
+        minimum_stock INTEGER NOT NULL DEFAULT 0,
+        purchase_price REAL NOT NULL DEFAULT 0,
+        selling_price REAL NOT NULL DEFAULT 0,
+        supplier TEXT,
+        location TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS part_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_id INTEGER NOT NULL,
+        repair_id INTEGER,
+        part_id INTEGER NOT NULL,
+        quantity_used INTEGER NOT NULL,
+        used_at TEXT NOT NULL,
+        technician_notes TEXT,
+        FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+        FOREIGN KEY (part_id) REFERENCES parts(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS inventory_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        part_id INTEGER NOT NULL,
+        transaction_type TEXT NOT NULL,
+        quantity_change INTEGER NOT NULL,
+        reference_id INTEGER,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (part_id) REFERENCES parts(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_parts_part_number ON parts(part_number)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_parts_appliance_type ON parts(appliance_type)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_parts_category ON parts(category)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_part_usage_invoice ON part_usage(invoice_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_inventory_transactions_part ON inventory_transactions(part_id)');
   }
 
   // --- DASHBOARD QUERIES ---
